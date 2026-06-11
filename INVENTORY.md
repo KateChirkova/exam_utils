@@ -30,6 +30,7 @@
 | provider | Ключ с сайта? | Что нужно заранее |
 |----------|---------------|-------------------|
 | `ollama` (по умолчанию) | **Нет** | `ollama pull llama3.2` |
+| `lm_studio` | **Нет** | LM Studio запущен, Local Server включён |
 | `llama_cpp` | **Нет** | файл `.gguf` на диске |
 | `transformers` | **Нет** | веса модели скачаны |
 | `openai` | Да | `OPENAI_API_KEY` в `.env` |

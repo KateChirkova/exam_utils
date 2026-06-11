@@ -3,7 +3,7 @@
 Вызов API (ollama, gigachat, llama_cpp, transformers) пишете в своём коде.
 
 Ключ с сайта нужен только для openai / gigachat.
-Локально: ollama, llama-cpp-python, transformers — без ключей.
+Локально: ollama, lm_studio, llama-cpp-python, transformers — без ключей.
 """
 
 from __future__ import annotations
@@ -33,6 +33,7 @@ def load_llm_config(provider: str = "ollama") -> LLMConfig:
     Настройки из .env.
 
     ollama       — OLLAMA_MODEL
+    lm_studio    — LM_STUDIO_BASE_URL, LM_STUDIO_MODEL (локальный сервер LM Studio)
     llama_cpp    — LLAMA_CPP_MODEL_PATH
     transformers — TRANSFORMERS_MODEL
     openai       — OPENAI_API_KEY, OPENAI_MODEL
@@ -50,6 +51,16 @@ def load_llm_config(provider: str = "ollama") -> LLMConfig:
         return LLMConfig(
             provider="ollama",
             model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+        )
+    if provider in ("lm_studio", "lmstudio", "lm-studio"):
+        base = os.getenv("LM_STUDIO_BASE_URL", "http://localhost:1234/v1").rstrip("/")
+        if not base.endswith("/v1"):
+            base += "/v1"
+        return LLMConfig(
+            provider="lm_studio",
+            model=os.getenv("LM_STUDIO_MODEL", "local-model"),
+            api_key=os.getenv("LM_STUDIO_API_KEY", "lm-studio"),
+            base_url=base,
         )
     if provider == "gigachat":
         return LLMConfig(
@@ -69,7 +80,7 @@ def load_llm_config(provider: str = "ollama") -> LLMConfig:
         )
     raise ValueError(
         f"Unknown provider: {provider}. "
-        "Use: ollama, llama_cpp, transformers, openai, gigachat"
+        "Use: ollama, lm_studio, llama_cpp, transformers, openai, gigachat"
     )
 
 
@@ -93,7 +104,7 @@ def check_llm_ready(provider: str = "ollama") -> bool:
 
 def get_llm_client(config: LLMConfig | None = None, provider: str = "openai"):
     """
-    OpenAI-совместимый клиент (openai / Ollama через /v1).
+    OpenAI-совместимый клиент (openai / Ollama / LM Studio через /v1).
 
     Пример:
         cfg = load_llm_config("openai")
@@ -114,10 +125,13 @@ def get_llm_client(config: LLMConfig | None = None, provider: str = "openai"):
     elif config.provider == "ollama":
         base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
         kwargs["base_url"] = base if base.endswith("/v1") else base + "/v1"
+    elif config.provider == "lm_studio":
+        kwargs["api_key"] = config.api_key or "lm-studio"
+        kwargs["base_url"] = config.base_url or "http://localhost:1234/v1"
     return OpenAI(**kwargs)
 
 
 if __name__ == "__main__":
-    for p in ("ollama", "llama_cpp", "transformers", "openai", "gigachat"):
+    for p in ("ollama", "lm_studio", "llama_cpp", "transformers", "openai", "gigachat"):
         print(f"--- {p} ---")
         check_llm_ready(p)
