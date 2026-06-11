@@ -1,64 +1,105 @@
 """
-Утилиты для подготовки к ГЭК / вступительному тесту (ОМ, IT-сервисы).
-Направление: практические задания по Java + теоретический блок.
+Утилиты для практических заданий на экзамене.
+Ориентир: https://github.com/Moldarus/exam-preparation-utils
 
-Важно: модуль НЕ решает экзаменационные задачи целиком.
-Только генерация тестовых данных, проверка форматов, визуализация, шаблоны.
+Назначение — заменить рутину: загрузка данных, EDA, графики, предобработка,
+обучение моделей, работа с файлами. Не решает конкретную задачу целиком.
 """
 
 from __future__ import annotations
 
-import json
-import random
 import re
 import time
+import warnings
 from collections import Counter
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, Sequence
+from typing import Any, Callable, Iterator, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
+from sklearn.cluster import DBSCAN, KMeans
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    auc,
+    confusion_matrix,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+    r2_score,
+)
+from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
-# ---------------------------------------------------------------------------
-# 1. Параллельная обработка (задача: CompletableFuture / потоки)
-# ---------------------------------------------------------------------------
-
-def generate_random_int_list(
-    n: int = 1_000_000,
-    low: int = -1000,
-    high: int = 1000,
-    seed: int | None = 42,
-) -> list[int]:
-    """Сгенерировать список случайных int для тестирования Java-программы."""
-    rng = random.Random(seed)
-    return [rng.randint(low, high) for _ in range(n)]
-
-
-def split_into_chunks(data: Sequence[int], n_chunks: int) -> list[list[int]]:
-    """Разбить последовательность на n_chunks частей (проверка границ чанков)."""
-    if n_chunks < 1:
-        raise ValueError("n_chunks must be >= 1")
-    size = len(data)
-    base, extra = divmod(size, n_chunks)
-    chunks: list[list[int]] = []
-    start = 0
-    for i in range(n_chunks):
-        end = start + base + (1 if i < extra else 0)
-        chunks.append(list(data[start:end]))
-        start = end
-    return chunks
+warnings.filterwarnings("ignore")
 
 
-def reference_sum_of_squares(numbers: Iterable[int]) -> int:
-    """Эталонная сумма квадратов — для сверки результата вашей Java-программы."""
-    return sum(x * x for x in numbers)
+# =============================================================================
+# 0. Рутинные операции (файлы, таймер, разбиение, группировки)
+# =============================================================================
+
+def setup_plot_style(figsize: tuple[int, int] = (10, 5)) -> None:
+    """Единый стиль графиков — один вызов в начале работы."""
+    plt.style.use("seaborn-v0_8-whitegrid")
+    plt.rcParams["figure.figsize"] = figsize
+    plt.rcParams["font.size"] = 11
+
+
+def save_figure(path: str | Path, dpi: int = 120) -> Path:
+    """Сохранить текущую фигуру (вместо ручного plt.savefig)."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(path, dpi=dpi, bbox_inches="tight")
+    print(f"Figure saved: {path}")
+    return path
+
+
+def preview_df(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
+    """Быстрый просмотр: shape, dtypes, head."""
+    print(f"Shape: {df.shape}")
+    print(f"Dtypes:\n{df.dtypes}\n")
+    print(df.head(n))
+    return df.head(n)
+
+
+def load_table(path: str | Path) -> pd.DataFrame:
+    """Загрузить CSV / Excel / JSON без выбора метода вручную."""
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return pd.read_csv(path)
+    if suffix in (".xlsx", ".xls"):
+        return pd.read_excel(path)
+    if suffix == ".json":
+        return pd.read_json(path)
+    raise ValueError(f"Unsupported format: {suffix}")
+
+
+def read_text_lines(path: str | Path, encoding: str = "utf-8") -> list[str]:
+    """Построчное чтение текстового файла."""
+    return Path(path).read_text(encoding=encoding).splitlines()
+
+
+@contextmanager
+def timer(label: str = "block") -> Iterator[None]:
+    """Контекстный менеджер замера времени в мс."""
+    t0 = time.perf_counter()
+    yield
+    elapsed = (time.perf_counter() - t0) * 1000
+    print(f"[{label}] {elapsed:.2f} ms")
 
 
 def benchmark_call(label: str, func: Callable[[], Any], repeat: int = 1) -> dict[str, Any]:
-    """Замер времени выполнения callable (мс). Не заменяет реализацию в Java."""
+    """Замер callable; удобно сравнивать варианты реализации."""
     times_ms: list[float] = []
     result = None
     for _ in range(repeat):
@@ -68,462 +109,621 @@ def benchmark_call(label: str, func: Callable[[], Any], repeat: int = 1) -> dict
     stats = {
         "label": label,
         "result": result,
-        "times_ms": times_ms,
         "mean_ms": float(np.mean(times_ms)),
         "min_ms": float(np.min(times_ms)),
         "max_ms": float(np.max(times_ms)),
     }
-    print(f"[{label}] mean={stats['mean_ms']:.2f} ms, min={stats['min_ms']:.2f}, max={stats['max_ms']:.2f}")
+    print(f"[{label}] mean={stats['mean_ms']:.2f} ms")
     return stats
 
 
-def plot_parallel_chunks(
-    chunk_sizes: Sequence[int],
-    chunk_sums: Sequence[int] | None = None,
-    title: str = "Parallel chunk processing",
-) -> None:
-    """Визуализация размеров чанков и (опционально) частичных сумм."""
-    fig, axes = plt.subplots(1, 2 if chunk_sums else 1, figsize=(12, 4))
-    if not isinstance(axes, np.ndarray):
-        axes = np.array([axes])
-
-    axes[0].bar(range(len(chunk_sizes)), chunk_sizes, color="steelblue", edgecolor="black")
-    axes[0].set_xlabel("Chunk index")
-    axes[0].set_ylabel("Size")
-    axes[0].set_title("Chunk sizes")
-
-    if chunk_sums is not None:
-        axes[1].bar(range(len(chunk_sums)), chunk_sums, color="coral", edgecolor="black")
-        axes[1].set_xlabel("Chunk index")
-        axes[1].set_ylabel("Sum of squares")
-        axes[1].set_title("Partial sums (reference)")
-
-    fig.suptitle(title)
-    plt.tight_layout()
-    plt.show()
+def split_into_chunks(data: Sequence, n_chunks: int) -> list[list]:
+    """Разбить последовательность на n частей."""
+    if n_chunks < 1:
+        raise ValueError("n_chunks must be >= 1")
+    size = len(data)
+    base, extra = divmod(size, n_chunks)
+    chunks, start = [], 0
+    for i in range(n_chunks):
+        end = start + base + (1 if i < extra else 0)
+        chunks.append(list(data[start:end]))
+        start = end
+    return chunks
 
 
-# ---------------------------------------------------------------------------
-# 2. LRU Cache — только трассировка и тестовые последовательности
-# ---------------------------------------------------------------------------
-
-@dataclass
-class LRUOperation:
-    op: str  # "get" | "put"
-    key: Any
-    value: Any | None = None
+def group_and_count(df: pd.DataFrame, column: str, sort: bool = True) -> pd.Series:
+    """value_counts + сортировка — частая операция в аналитических задачах."""
+    counts = df[column].value_counts()
+    return counts.sort_values(ascending=False) if sort else counts
 
 
-def generate_lru_test_sequence(
-    capacity: int,
-    n_ops: int = 20,
-    key_pool: int = 8,
-    seed: int = 42,
-) -> list[LRUOperation]:
-    """Случайная последовательность get/put для ручной или unit-проверки LRU."""
-    rng = random.Random(seed)
-    ops: list[LRUOperation] = []
-    for _ in range(n_ops):
-        key = rng.randint(1, key_pool)
-        if rng.random() < 0.45:
-            ops.append(LRUOperation("get", key))
-        else:
-            ops.append(LRUOperation("put", key, rng.randint(1, 100)))
-    print(f"Generated {len(ops)} ops for capacity={capacity}, key_pool=1..{key_pool}")
-    return ops
-
-
-def print_lru_trace_table(operations: Sequence[LRUOperation]) -> pd.DataFrame:
-    """Таблица операций для пошаговой отладки вашей реализации."""
-    rows = [{"#": i + 1, "op": o.op, "key": o.key, "value": o.value} for i, o in enumerate(operations)]
-    df = pd.DataFrame(rows)
+def top_n_counts(
+    counts: Counter | pd.Series | dict,
+    n: int = 10,
+    title: str = "Top counts",
+) -> pd.DataFrame:
+    """Топ-N значений в таблице (для отчёта или сверки)."""
+    if isinstance(counts, Counter):
+        items = counts.most_common(n)
+    elif isinstance(counts, pd.Series):
+        items = list(counts.head(n).items())
+    else:
+        items = sorted(counts.items(), key=lambda x: (-x[1], str(x[0])))[:n]
+    df = pd.DataFrame(items, columns=["value", "count"])
+    print(f"--- {title} ---")
     print(df.to_string(index=False))
     return df
 
 
-def plot_lru_access_pattern(operations: Sequence[LRUOperation], title: str = "LRU access pattern") -> None:
-    """График обращений к ключам (какие ключи чаще трогают потоки операций)."""
-    keys = [op.key for op in operations]
-    counts = Counter(keys)
-    items = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
-    labels, values = zip(*items) if items else ([], [])
-
-    plt.figure(figsize=(8, 4))
-    plt.bar([str(k) for k in labels], values, color="teal", edgecolor="black")
-    plt.xlabel("Key")
-    plt.ylabel("Operations count")
-    plt.title(title)
-    plt.tight_layout()
-    plt.show()
-
-
-# ---------------------------------------------------------------------------
-# 3. REST API «Библиотека книг» — DTO, валидация, HTTP-шаблоны
-# ---------------------------------------------------------------------------
-
-@dataclass
-class BookDTO:
-    title: str
-    author: str
-    year: int
-    genre: str
-    id: int | None = None
-
-
-def generate_sample_books(n: int = 5, seed: int = 42) -> list[BookDTO]:
-    """Тестовые книги для POST/GET/PUT — не готовый Spring-сервис."""
-    rng = random.Random(seed)
-    genres = ["fiction", "science", "history", "fantasy", "biography"]
-    authors = ["Tolstoy", "Dostoevsky", "Pushkin", "Bulgakov", "Gogol"]
-    books = []
-    for i in range(n):
-        books.append(
-            BookDTO(
-                id=i + 1,
-                title=f"Book {i + 1}",
-                author=rng.choice(authors),
-                year=rng.randint(1800, 2024),
-                genre=rng.choice(genres),
-            )
-        )
-    return books
-
-
-def validate_book_dto(book: BookDTO | dict, current_year: int | None = None) -> tuple[bool, list[str]]:
-    """
-    Проверка полей DTO (год не в будущем, непустые строки).
-    Используйте как эталон правил валидации в Java.
-    """
-    current_year = current_year or datetime.now().year
-    errors: list[str] = []
-    data = book if isinstance(book, dict) else asdict(book)
-
-    for field in ("title", "author", "genre"):
-        if not str(data.get(field, "")).strip():
-            errors.append(f"{field} must not be empty")
-
-    year = data.get("year")
-    if not isinstance(year, int):
-        errors.append("year must be integer")
-    elif year > current_year:
-        errors.append(f"year must not be in the future (>{current_year})")
-    elif year < 0:
-        errors.append("year must be non-negative")
-
-    return len(errors) == 0, errors
-
-
-def books_to_json(books: Sequence[BookDTO], indent: int = 2) -> str:
-    """Сериализация списка книг в JSON для тела POST/PUT."""
-    payload = [asdict(b) for b in books]
-    return json.dumps(payload, ensure_ascii=False, indent=indent)
-
-
-def save_books_json(books: Sequence[BookDTO], path: str | Path) -> Path:
-    path = Path(path)
-    path.write_text(books_to_json(books), encoding="utf-8")
-    print(f"Saved {len(books)} books to {path}")
-    return path
-
-
-def print_curl_templates(base_url: str = "http://localhost:8080") -> None:
-    """Шаблоны curl-запросов — копируйте и подставляйте свои данные."""
-    templates = {
-        "POST /books": f"""curl -X POST {base_url}/books \\
-  -H "Content-Type: application/json" \\
-  -d '{{"title":"War and Peace","author":"Tolstoy","year":1869,"genre":"fiction"}}'""",
-        "GET /books": f'curl "{base_url}/books?author=Tolstoy&genre=fiction"',
-        "GET /books/{{id}}": f"curl {base_url}/books/1",
-        "PUT /books/{{id}}": f"""curl -X PUT {base_url}/books/1 \\
-  -H "Content-Type: application/json" \\
-  -d '{{"title":"Updated","author":"Tolstoy","year":1869,"genre":"classic"}}'""",
-        "DELETE /books/{{id}}": f"curl -X DELETE {base_url}/books/1",
-    }
-    for name, cmd in templates.items():
-        print(f"\n--- {name} ---\n{cmd}\n")
-
-
-def print_rest_layer_skeleton() -> None:
-    """Скелет слоёв Controller / Service / DTO — напоминание структуры, не код решения."""
-    skeleton = """
-    [Controller]  @RestController, @RequestMapping("/books")
-                  POST/GET/PUT/DELETE + @Valid DTO + ResponseEntity
-
-    [Service]     бизнес-логика, ConcurrentHashMap<Long, Book>
-
-    [DTO]         BookRequest (ввод), BookResponse (вывод)
-
-    [Exceptions]  @ControllerAdvice + @ExceptionHandler
-                  BookNotFoundException, ValidationException
-    """
-    print(skeleton.strip())
-
-
-# ---------------------------------------------------------------------------
-# 4. Парсинг server.log — regex, генерация, визуализация (не готовый парсер)
-# ---------------------------------------------------------------------------
-
-LOG_LINE_PATTERN = re.compile(
-    r"^\[(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] "
-    r"(?P<level>\w+) (?P<service>\w+) - (?P<message>.+)$"
-)
-
-
-def get_log_line_pattern() -> re.Pattern[str]:
-    """Вернуть скомпилированный Pattern для формата server.log."""
-    return LOG_LINE_PATTERN
-
-
-def parse_log_line(line: str, pattern: re.Pattern[str] | None = None) -> dict[str, str] | None:
-    """Разбор одной строки лога — для отладки regex, не замена Stream API в Java."""
-    pattern = pattern or LOG_LINE_PATTERN
-    m = pattern.match(line.strip())
-    if not m:
-        return None
-    return m.groupdict()
-
-
-def iter_log_lines(path: str | Path, encoding: str = "utf-8") -> Iterator[str]:
-    """Построчное чтение файла (аналог Files.lines для быстрой проверки в Python)."""
-    with Path(path).open(encoding=encoding) as f:
-        for line in f:
-            yield line.rstrip("\n")
-
-
-def preview_log_parsing(path: str | Path, n_lines: int = 10) -> pd.DataFrame:
-    """Первые n строк: сработал ли regex."""
+def extract_with_regex(
+    lines: Sequence[str],
+    pattern: str | re.Pattern,
+    fields: Sequence[str] | None = None,
+) -> pd.DataFrame:
+    """Применить regex к списку строк → DataFrame (отладка парсинга)."""
+    compiled = re.compile(pattern) if isinstance(pattern, str) else pattern
     rows = []
-    for i, line in enumerate(iter_log_lines(path)):
-        if i >= n_lines:
-            break
-        parsed = parse_log_line(line)
-        rows.append({"line": line, "parsed": parsed is not None, **(parsed or {})})
+    for line in lines:
+        m = compiled.search(line.strip())
+        if m:
+            rows.append(m.groupdict() if m.groupdict() else {"match": m.group(0)})
     df = pd.DataFrame(rows)
-    print(df.to_string(index=False))
+    if fields:
+        df = df[[c for c in fields if c in df.columns]]
+    print(f"Matched {len(df)} / {len(lines)} lines")
     return df
 
 
-def generate_sample_server_log(
-    n_lines: int = 100,
-    services: Sequence[str] | None = None,
-    seed: int = 42,
-    error_ratio: float = 0.25,
-) -> list[str]:
-    """Сгенерировать server.log для локальных тестов Java-парсера."""
-    rng = random.Random(seed)
-    services = list(services or ["UserService", "PaymentService", "AuthService", "DatabaseService"])
-    levels_info = [
-        ("INFO", "{service} - User {uid} logged in"),
-        ("INFO", "{service} - Token expired for user {uid}"),
-        ("ERROR", "{service} - Payment failed for user {uid}: timeout"),
-        ("ERROR", "{service} - Connection pool exhausted"),
-        ("ERROR", "{service} - Invalid credentials for user {uid}"),
-    ]
-    base_time = datetime(2024, 3, 15, 10, 0, 0)
-    lines: list[str] = []
-    for i in range(n_lines):
-        ts = base_time + timedelta(seconds=i * rng.randint(5, 40))
-        level, tmpl = rng.choice(levels_info)
-        if rng.random() > error_ratio and level == "ERROR":
-            level, tmpl = levels_info[0]
-        svc = rng.choice(services)
-        msg = tmpl.format(service=svc, uid=rng.randint(100, 999))
-        lines.append(f"[{ts.strftime('%Y-%m-%d %H:%M:%S')}] {level} {svc} - {msg.split(' - ', 1)[-1]}")
-    return lines
+# =============================================================================
+# 1. EDA
+# =============================================================================
+
+def quick_eda(df: pd.DataFrame, target_col: str | None = None) -> pd.DataFrame:
+    """Быстрый EDA: shape, пропуски, describe, целевая переменная."""
+    print("=" * 50, "BASIC INFO", "=" * 50, sep="\n")
+    print(f"Shape: {df.shape}\nColumns: {list(df.columns)}\n\n{df.dtypes}")
+
+    print("\n" + "=" * 50, "MISSING VALUES", "=" * 50, sep="\n")
+    missing = df.isnull().sum()
+    missing_df = pd.DataFrame({"Missing": missing, "Pct": (missing / len(df) * 100).round(2)})
+    print(missing_df[missing_df["Missing"] > 0])
+
+    print("\n" + "=" * 50, "STATISTICS", "=" * 50, sep="\n")
+    print(df.describe(include="all"))
+
+    if target_col and target_col in df.columns:
+        print("\n" + "=" * 50, f"TARGET: {target_col}", "=" * 50, sep="\n")
+        col = df[target_col]
+        if pd.api.types.is_numeric_dtype(col):
+            print(f"mean={col.mean():.2f}, median={col.median():.2f}, std={col.std():.2f}")
+        else:
+            print(col.value_counts().head(10))
+
+    return missing_df
 
 
-def save_server_log(lines: Sequence[str], path: str | Path) -> Path:
-    path = Path(path)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"Saved {len(lines)} log lines to {path}")
-    return path
+# =============================================================================
+# 2. Визуализация (упрощённые обёртки)
+# =============================================================================
 
-
-def normalize_error_message(message: str) -> str:
-    """Упростить текст ошибки (убрать id пользователя) — для группировки топ-сообщений."""
-    msg = re.sub(r"user \d+", "user", message, flags=re.IGNORECASE)
-    msg = re.sub(r"\b\d+\b", "", msg)
-    return " ".join(msg.lower().split())
-
-
-def demo_log_aggregation(log_path: str | Path) -> tuple[Counter[str], Counter[str]]:
-    """
-    Демо-агрегация ERROR (для сверки формата вывода).
-    В экзамене реализуйте аналог на Java Stream API + Pattern/Matcher.
-    """
-    by_service: Counter[str] = Counter()
-    by_message: Counter[str] = Counter()
-    for line in iter_log_lines(log_path):
-        parsed = parse_log_line(line)
-        if not parsed or parsed["level"] != "ERROR":
-            continue
-        by_service[parsed["service"]] += 1
-        by_message[normalize_error_message(parsed["message"])] += 1
-    return by_service, by_message
-
-
-def format_log_report(
-    service_counts: Counter[str] | dict[str, int],
-    message_counts: Counter[str] | dict[str, int],
-    top_n: int = 3,
-) -> str:
-    """Формат эталонного вывода — сверьте с требованиями задания."""
-    lines = ["Ошибки по сервисам:"]
-    for svc, cnt in sorted(service_counts.items(), key=lambda x: (-x[1], x[0])):
-        lines.append(f"{svc}: {cnt}")
-    lines.append("")
-    lines.append(f"Топ-{top_n} сообщений об ошибках:")
-    for i, (msg, cnt) in enumerate(
-        sorted(message_counts.items(), key=lambda x: (-x[1], x[0]))[:top_n], start=1
-    ):
-        lines.append(f"{i}. {msg} - {cnt} раз")
-    return "\n".join(lines)
-
-
-def plot_log_errors_by_service(service_counts: dict[str, int] | Counter[str], title: str = "Errors by service") -> None:
-    """Bar chart ошибок по сервисам."""
-    if not service_counts:
-        print("No errors to plot")
+def plot_distributions(
+    df: pd.DataFrame,
+    numeric_cols: list[str] | None = None,
+    figsize: tuple[int, int] = (15, 10),
+    bins: int = 30,
+) -> None:
+    """Гистограммы числовых колонок в одной фигуре."""
+    numeric_cols = numeric_cols or df.select_dtypes(include=[np.number]).columns.tolist()
+    if not numeric_cols:
+        print("No numeric columns")
         return
-    items = sorted(service_counts.items(), key=lambda x: (-x[1], x[0]))
-    labels, values = zip(*items)
-    plt.figure(figsize=(8, 4))
-    plt.bar(labels, values, color="indianred", edgecolor="black")
-    plt.xlabel("Service")
-    plt.ylabel("ERROR count")
+
+    n_cols = min(3, len(numeric_cols))
+    n_rows = (len(numeric_cols) + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+    axes = np.atleast_1d(axes).flatten()
+
+    for i, col in enumerate(numeric_cols):
+        axes[i].hist(df[col].dropna(), bins=bins, edgecolor="black", alpha=0.7)
+        axes[i].set_title(col)
+
+    for j in range(len(numeric_cols), len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_correlation_matrix(df: pd.DataFrame, figsize: tuple[int, int] = (10, 8)) -> pd.DataFrame | None:
+    """Тепловая карта корреляций."""
+    numeric_df = df.select_dtypes(include=[np.number])
+    if len(numeric_df.columns) < 2:
+        print("Not enough numeric columns")
+        return None
+
+    corr = numeric_df.corr()
+    mask = np.triu(np.ones_like(corr, dtype=bool))
+    plt.figure(figsize=figsize)
+    sns.heatmap(corr, mask=mask, annot=True, fmt=".2f", cmap="coolwarm", center=0, square=True)
+    plt.title("Correlation Matrix")
+    plt.tight_layout()
+    plt.show()
+    return corr
+
+
+def plot_bar_counts(
+    data: Counter | pd.Series | dict,
+    title: str = "Counts",
+    top_n: int | None = None,
+    figsize: tuple[int, int] = (10, 5),
+    horizontal: bool = False,
+) -> None:
+    """Bar chart из value_counts / Counter / dict — без ручной настройки осей."""
+    if isinstance(data, Counter):
+        items = data.most_common(top_n)
+        labels, values = zip(*items) if items else ([], [])
+    elif isinstance(data, pd.Series):
+        s = data.head(top_n) if top_n else data
+        labels, values = s.index.tolist(), s.values.tolist()
+    else:
+        items = sorted(data.items(), key=lambda x: -x[1])
+        if top_n:
+            items = items[:top_n]
+        labels, values = zip(*items) if items else ([], [])
+
+    plt.figure(figsize=figsize)
+    fn = plt.barh if horizontal else plt.bar
+    fn(labels, values, edgecolor="black", alpha=0.8)
     plt.title(title)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_box_by_category(
+    df: pd.DataFrame,
+    numeric_col: str,
+    category_col: str,
+    title: str | None = None,
+) -> None:
+    """Boxplot числового признака по категориям."""
+    plt.figure(figsize=(10, 5))
+    df.boxplot(column=numeric_col, by=category_col)
+    plt.title(title or f"{numeric_col} by {category_col}")
+    plt.suptitle("")
     plt.xticks(rotation=30, ha="right")
     plt.tight_layout()
     plt.show()
 
 
-# ---------------------------------------------------------------------------
-# 5. Теория: шпаргалки и быстрые проверки (SQL, Git, сети, ML-метрики)
-# ---------------------------------------------------------------------------
-
-def print_sql_cheatsheet() -> None:
-    """Шаблоны SQL из типовых экзаменационных тем."""
-    snippets = {
-        "SELECT basics": "SELECT col1, col2 FROM table WHERE condition ORDER BY col1;",
-        "JOIN": "SELECT a.*, b.name FROM a JOIN b ON a.id = b.a_id;",
-        "GROUP BY": "SELECT dept, COUNT(*) FROM emp GROUP BY dept HAVING COUNT(*) > 5;",
-        "Window fn": "SELECT id, salary, RANK() OVER (PARTITION BY dept ORDER BY salary DESC) FROM emp;",
-        "Recursive CTE": "WITH RECURSIVE tree AS (SELECT id, parent_id FROM nodes WHERE parent_id IS NULL "
-        "UNION ALL SELECT n.id, n.parent_id FROM nodes n JOIN tree t ON n.parent_id = t.id) SELECT * FROM tree;",
-    }
-    for title, sql in snippets.items():
-        print(f"\n--- {title} ---\n{sql}")
-
-
-def print_git_cheatsheet() -> None:
-    """Git-команды из блока «Системы контроля версий»."""
-    commands = {
-        "История коммитов": "git log --oneline --graph",
-        "Отмена изменений в файле": "git restore <file>  или  git checkout -- <file>",
-        "Статус": "git status",
-        "Diff": "git diff",
-        "Staged diff": "git diff --staged",
-    }
-    for desc, cmd in commands.items():
-        print(f"{desc}: {cmd}")
-
-
-def print_network_reference() -> None:
-    """Справочник по сетям (порты, протоколы, OSI)."""
-    ref = {
-        "HTTPS": "443",
-        "HTTP": "80",
-        "SSH": "22",
-        "SFTP": "поверх SSH (22)",
-        "DHCP": "автоназначение IP",
-        "OSI levels": "7 (Physical … Application)",
-        "HTTP idempotent": "GET, PUT, DELETE (HEAD, OPTIONS)",
-    }
-    for k, v in ref.items():
-        print(f"{k}: {v}")
-
-
-def print_docker_k8s_reference() -> None:
-    print("Dockerfile: инструкции сборки образа (FROM, RUN, COPY, CMD)")
-    print("docker build: сборка образа из Dockerfile")
-    print("Orchestration: Kubernetes (k8s), Docker Swarm, Nomad")
-
-
-def compute_classification_metrics(y_true: Sequence, y_pred: Sequence) -> dict[str, float]:
-    """Быстрый расчёт accuracy / precision / recall / F1 для теории ML."""
-    y_true = list(y_true)
-    y_pred = list(y_pred)
-    labels = sorted(set(y_true) | set(y_pred))
-    tp = sum(1 for t, p in zip(y_true, y_pred) if t == p == 1) if set(labels) <= {0, 1} else None
-
-    if tp is not None:
-        fp = sum(1 for t, p in zip(y_true, y_pred) if t == 0 and p == 1)
-        fn = sum(1 for t, p in zip(y_true, y_pred) if t == 1 and p == 0)
-        tn = sum(1 for t, p in zip(y_true, y_pred) if t == p == 0)
-        precision = tp / (tp + fp) if (tp + fp) else 0.0
-        recall = tp / (tp + fn) if (tp + fn) else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
-        accuracy = (tp + tn) / len(y_true) if y_true else 0.0
-        metrics = {"accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
+def plot_scatter_colored(
+    df: pd.DataFrame,
+    x: str,
+    y: str,
+    color_col: str | None = None,
+    title: str = "Scatter",
+) -> None:
+    """Scatter с опциональной раскраской по категории."""
+    plt.figure(figsize=(8, 6))
+    if color_col and color_col in df.columns:
+        for label, group in df.groupby(color_col):
+            plt.scatter(group[x], group[y], label=str(label), alpha=0.6)
+        plt.legend()
     else:
-        accuracy = sum(t == p for t, p in zip(y_true, y_pred)) / len(y_true) if y_true else 0.0
-        metrics = {"accuracy": accuracy}
-
-    for name, val in metrics.items():
-        print(f"{name}: {val:.4f}")
-    return metrics
-
-
-def print_theory_topics_index() -> None:
-    """Оглавление тем из файла ОМ_ГЭК.docx."""
-    topics = [
-        "1. Базы данных и SQL (PK, SELECT, ACID)",
-        "2. Алгоритмы и Python (рекурсия, __init__, iterator, FIFO, декораторы)",
-        "3. Linux (touch, rm, ls)",
-        "4. Сети (HTTPS/443, DHCP, OSI, SFTP, идемпотентность HTTP)",
-        "5. Архитектура (UML sequence, C4, CAP, микросервисы)",
-        "6. Docker / оркестрация",
-        "7. Git",
-        "8. ML (RL, Recall, регрессия, adversarial attacks, feature engineering)",
-        "9. Распределённые системы (Service Mesh, Kafka topic, масштабирование)",
-        "10. ITSM/ITIL (SLA, incident)",
-        "11. Cloud (PaaS, SaaS)",
-        "12. Java практика: CompletableFuture, LRU, REST, log parsing",
-    ]
-    print("\n".join(topics))
+        plt.scatter(df[x], df[y], alpha=0.6)
+    plt.xlabel(x)
+    plt.ylabel(y)
+    plt.title(title)
+    plt.tight_layout()
+    plt.show()
 
 
-# ---------------------------------------------------------------------------
-# 6. Общие helpers
-# ---------------------------------------------------------------------------
+def quick_visualization_report(df: pd.DataFrame, target_col: str | None = None) -> None:
+    """Один вызов → корреляции + распределения + анализ целевой."""
+    print("1. Correlation matrix")
+    plot_correlation_matrix(df)
 
-def setup_plot_style() -> None:
-    """Единый стиль графиков для отчётов."""
-    plt.style.use("seaborn-v0_8-whitegrid")
-    plt.rcParams["figure.figsize"] = (10, 5)
-    plt.rcParams["font.size"] = 11
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if numeric_cols:
+        print("2. Distributions")
+        plot_distributions(df, numeric_cols[: min(6, len(numeric_cols))])
+
+    if target_col and target_col in df.columns:
+        print(f"3. Target: {target_col}")
+        col = df[target_col]
+        fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+        if pd.api.types.is_numeric_dtype(col):
+            axes[0].hist(col.dropna(), bins=30, edgecolor="black")
+            axes[1].boxplot(col.dropna())
+        else:
+            counts = col.value_counts().head(10)
+            axes[0].bar(counts.index.astype(str), counts.values)
+            plot_bar_counts(counts, title=f"{target_col} counts", top_n=10)
+            plt.close(fig)
+            return
+        axes[0].set_title(f"Distribution of {target_col}")
+        axes[1].set_title(f"Boxplot of {target_col}")
+        plt.tight_layout()
+        plt.show()
+
+
+def plot_parallel_coordinates(df: pd.DataFrame, class_col: str, cols: list[str] | None = None) -> None:
+    """Параллельные координаты."""
+    from pandas.plotting import parallel_coordinates
+
+    cols = cols or [c for c in df.select_dtypes(include=[np.number]).columns if c != class_col]
+    plt.figure(figsize=(12, 6))
+    parallel_coordinates(df[cols + [class_col]], class_col, colormap="viridis")
+    plt.title("Parallel Coordinates")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+
+# =============================================================================
+# 3. Предобработка
+# =============================================================================
+
+def handle_missing_values(df: pd.DataFrame, strategy: str = "auto") -> pd.DataFrame:
+    """Заполнение пропусков: auto (медиана/мода), drop, zero."""
+    df_clean = df.copy()
+    for col in df_clean.columns:
+        if df_clean[col].isnull().sum() == 0:
+            continue
+        if strategy == "auto":
+            if pd.api.types.is_numeric_dtype(df_clean[col]):
+                df_clean[col] = df_clean[col].fillna(df_clean[col].median())
+            else:
+                mode = df_clean[col].mode()
+                df_clean[col] = df_clean[col].fillna(mode.iloc[0] if len(mode) else "Unknown")
+        elif strategy == "drop":
+            df_clean = df_clean.dropna(subset=[col])
+        elif strategy == "zero":
+            df_clean[col] = df_clean[col].fillna(0)
+
+    print(f"Missing: {df.isnull().sum().sum()} → {df_clean.isnull().sum().sum()}")
+    return df_clean
+
+
+def encode_categorical(df: pd.DataFrame, method: str = "auto") -> tuple[pd.DataFrame, dict]:
+    """One-Hot / Label encoding категориальных колонок."""
+    df_encoded = df.copy()
+    encoders: dict = {}
+    cat_cols = df_encoded.select_dtypes(include=["object", "category"]).columns
+
+    for col in cat_cols:
+        if method == "auto":
+            use_onehot = df_encoded[col].nunique() <= 10
+        else:
+            use_onehot = method == "onehot"
+
+        if use_onehot:
+            dummies = pd.get_dummies(df_encoded[col], prefix=col, drop_first=True)
+            df_encoded = pd.concat([df_encoded.drop(columns=[col]), dummies], axis=1)
+            encoders[col] = "onehot"
+        else:
+            le = LabelEncoder()
+            df_encoded[col] = le.fit_transform(df_encoded[col].astype(str))
+            encoders[col] = le
+
+    print(f"Encoded {len(cat_cols)} categorical columns")
+    return df_encoded, encoders
+
+
+def scale_features(
+    df: pd.DataFrame,
+    target_col: str | None = None,
+    method: str = "standard",
+) -> tuple[pd.DataFrame, StandardScaler]:
+    """StandardScaler / MinMaxScaler для числовых признаков."""
+    from sklearn.preprocessing import MinMaxScaler
+
+    feature_cols = [c for c in df.columns if c != target_col] if target_col else df.columns.tolist()
+    numeric_cols = df[feature_cols].select_dtypes(include=[np.number]).columns.tolist()
+    scaler = StandardScaler() if method == "standard" else MinMaxScaler()
+
+    df_scaled = df.copy()
+    df_scaled[numeric_cols] = scaler.fit_transform(df[numeric_cols])
+    print(f"Scaled {len(numeric_cols)} columns ({method})")
+    return df_scaled, scaler
+
+
+def prepare_xy(
+    df: pd.DataFrame,
+    target_col: str,
+    test_size: float = 0.2,
+    scale: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, Any | None]:
+    """Типовой пайплайн: пропуски → encoding → split → scale."""
+    df_clean = handle_missing_values(df)
+    df_enc, _ = encode_categorical(df_clean)
+    X = df_enc.drop(columns=[target_col])
+    y = df_enc[target_col]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
+
+    scaler = None
+    if scale:
+        X_train, scaler = scale_features(X_train)
+        X_test = X_test.copy()
+        num = X_test.select_dtypes(include=[np.number]).columns
+        X_test[num] = scaler.transform(X_test[num])
+
+    return X_train, X_test, y_train, y_test, scaler
+
+
+# =============================================================================
+# 4. Кластеризация
+# =============================================================================
+
+def kmeans_elbow_method(X: np.ndarray, max_k: int = 10, random_state: int = 42) -> int:
+    """Метод локтя + график inertia."""
+    inertias = []
+    k_range = range(1, max_k + 1)
+    for k in k_range:
+        km = KMeans(n_clusters=k, random_state=random_state, n_init=10)
+        km.fit(X)
+        inertias.append(km.inertia_)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(k_range, inertias, "bo-")
+    plt.xlabel("k")
+    plt.ylabel("Inertia")
+    plt.title("Elbow Method")
+    plt.grid(True)
+    plt.show()
+
+    if len(inertias) > 2:
+        diffs2 = np.diff(np.diff(inertias))
+        optimal_k = int(np.argmin(diffs2) + 2)
+        print(f"Suggested k: {optimal_k}")
+        return optimal_k
+    return 3
+
+
+def perform_clustering(
+    X: np.ndarray,
+    n_clusters: int = 3,
+    eps: float = 0.5,
+    min_samples: int = 5,
+) -> tuple[np.ndarray, np.ndarray]:
+    """K-Means + DBSCAN за один вызов."""
+    kmeans_labels = KMeans(n_clusters=n_clusters, random_state=42, n_init=10).fit_predict(X)
+    dbscan_labels = DBSCAN(eps=eps, min_samples=min_samples).fit_predict(X)
+    n_db = len(set(dbscan_labels)) - (1 if -1 in dbscan_labels else 0)
+    print(f"K-Means: {n_clusters} clusters | DBSCAN: {n_db} clusters")
+    return kmeans_labels, dbscan_labels
+
+
+def plot_clusters_2d(
+    X: np.ndarray,
+    labels: np.ndarray,
+    title: str = "Clusters",
+    x_col: int = 0,
+    y_col: int = 1,
+) -> None:
+    plt.figure(figsize=(10, 6))
+    sc = plt.scatter(X[:, x_col], X[:, y_col], c=labels, cmap="viridis", alpha=0.6)
+    plt.colorbar(sc)
+    plt.xlabel(f"Feature {x_col}")
+    plt.ylabel(f"Feature {y_col}")
+    plt.title(title)
+    plt.show()
+
+
+# =============================================================================
+# 5. Классификация
+# =============================================================================
+
+def train_classification_models(X_train, X_test, y_train, y_test) -> dict:
+    """Обучить и сравнить 3 классификатора с метриками."""
+    models = {
+        "Decision Tree": DecisionTreeClassifier(random_state=42),
+        "Random Forest": RandomForestClassifier(random_state=42, n_estimators=100),
+        "Logistic Regression": LogisticRegression(random_state=42, max_iter=1000),
+    }
+    results = {}
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        proba = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
+
+        res = {
+            "model": model,
+            "accuracy": accuracy_score(y_test, y_pred),
+            "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
+            "recall": recall_score(y_test, y_pred, average="weighted", zero_division=0),
+            "f1": f1_score(y_test, y_pred, average="weighted", zero_division=0),
+            "auc": roc_auc_score(y_test, proba) if proba is not None and len(np.unique(y_test)) == 2 else None,
+        }
+        results[name] = res
+        print(f"{name}: acc={res['accuracy']:.4f}, f1={res['f1']:.4f}")
+    return results
+
+
+def plot_confusion_matrix(y_true, y_pred, title: str = "Confusion Matrix") -> None:
+    cm = confusion_matrix(y_true, y_pred)
+    plt.figure(figsize=(7, 5))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+    plt.title(title)
+    plt.ylabel("True")
+    plt.xlabel("Predicted")
+    plt.show()
+
+
+def plot_roc_curve(y_true, y_proba, title: str = "ROC Curve") -> None:
+    fpr, tpr, _ = roc_curve(y_true, y_proba)
+    score = auc(fpr, tpr)
+    plt.figure(figsize=(7, 5))
+    plt.plot(fpr, tpr, label=f"AUC={score:.3f}")
+    plt.plot([0, 1], [0, 1], "k--")
+    plt.xlabel("FPR")
+    plt.ylabel("TPR")
+    plt.title(title)
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
+# =============================================================================
+# 6. Регрессия
+# =============================================================================
+
+def train_regression_models(X_train, X_test, y_train, y_test) -> dict:
+    models = {
+        "Linear Regression": LinearRegression(),
+        "Decision Tree": DecisionTreeRegressor(random_state=42),
+        "Random Forest": RandomForestRegressor(random_state=42, n_estimators=100),
+    }
+    results = {}
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        mse = mean_squared_error(y_test, y_pred)
+        results[name] = {
+            "model": model,
+            "mae": mean_absolute_error(y_test, y_pred),
+            "rmse": float(np.sqrt(mse)),
+            "r2": r2_score(y_test, y_pred),
+        }
+        print(f"{name}: MAE={results[name]['mae']:.4f}, R²={results[name]['r2']:.4f}")
+    return results
+
+
+def plot_predictions(y_true, y_pred, title: str = "Predictions vs Actual") -> None:
+    plt.figure(figsize=(7, 5))
+    plt.scatter(y_true, y_pred, alpha=0.5)
+    lo, hi = min(y_true), max(y_true)
+    plt.plot([lo, hi], [lo, hi], "r--")
+    plt.xlabel("Actual")
+    plt.ylabel("Predicted")
+    plt.title(title)
+    plt.grid(True)
+    plt.show()
+
+
+# =============================================================================
+# 7. Аномалии
+# =============================================================================
+
+def detect_anomalies_iqr(df: pd.DataFrame, column: str, multiplier: float = 1.5):
+    Q1, Q3 = df[column].quantile(0.25), df[column].quantile(0.75)
+    IQR = Q3 - Q1
+    lo, hi = Q1 - multiplier * IQR, Q3 + multiplier * IQR
+    anomalies = df[(df[column] < lo) | (df[column] > hi)]
+    print(f"{column}: bounds [{lo:.2f}, {hi:.2f}], anomalies={len(anomalies)}")
+    return anomalies, df[(df[column] >= lo) & (df[column] <= hi)], (lo, hi)
+
+
+def detect_anomalies_zscore(df: pd.DataFrame, column: str, threshold: float = 3):
+    z = np.abs((df[column] - df[column].mean()) / df[column].std())
+    anomalies = df[z > threshold]
+    print(f"{column}: z>{threshold}, anomalies={len(anomalies)}")
+    return anomalies, df[z <= threshold]
+
+
+# =============================================================================
+# 8. Feature engineering / selection
+# =============================================================================
+
+def create_interaction_features(df: pd.DataFrame, feature_pairs: list[tuple[str, str]] | None = None) -> pd.DataFrame:
+    df_new = df.copy()
+    if feature_pairs is None:
+        num = df.select_dtypes(include=[np.number]).columns.tolist()
+        corr = df[num].corr().abs()
+        feature_pairs = [
+            (num[i], num[j])
+            for i in range(len(num))
+            for j in range(i + 1, len(num))
+            if corr.iloc[i, j] > 0.5
+        ][:10]
+    for c1, c2 in feature_pairs:
+        if c1 in df.columns and c2 in df.columns:
+            df_new[f"{c1}_x_{c2}"] = df[c1] * df[c2]
+    return df_new
+
+
+def select_features_by_correlation(df: pd.DataFrame, target_col: str, threshold: float = 0.95) -> pd.DataFrame:
+    num = [c for c in df.select_dtypes(include=[np.number]).columns if c != target_col]
+    corr = df[num].corr().abs()
+    upper = corr.where(np.triu(np.ones_like(corr), k=1).astype(bool))
+    drop = [c for c in upper.columns if any(upper[c] > threshold)]
+    print(f"Dropping correlated: {drop}")
+    return df.drop(columns=drop)
+
+
+def cross_validate_model(model, X, y, cv: int = 5, scoring: str = "auto") -> np.ndarray:
+    if scoring == "auto":
+        scoring = "roc_auc" if len(np.unique(y)) == 2 else "f1_weighted"
+    scores = cross_val_score(model, X, y, cv=cv, scoring=scoring)
+    print(f"CV {scoring}: {scores.mean():.4f} ± {scores.std() * 2:.4f}")
+    return scores
+
+
+# =============================================================================
+# 9. Генерация тестовых данных
+# =============================================================================
+
+def generate_sample_data(dataset_type: str = "regression", n_samples: int = 1000, random_state: int = 42) -> pd.DataFrame:
+    """Синтетический датасет для отладки пайплайна."""
+    np.random.seed(random_state)
+
+    if dataset_type == "regression":
+        X = np.random.randn(n_samples, 5)
+        y = 3 * X[:, 0] + 2 * X[:, 1] - X[:, 2] + np.random.randn(n_samples) * 0.5
+        df = pd.DataFrame(X, columns=[f"f{i}" for i in range(1, 6)])
+        df["target"] = y
+    elif dataset_type == "classification":
+        X = np.random.randn(n_samples, 5)
+        prob = 1 / (1 + np.exp(-(2 * X[:, 0] + X[:, 1])))
+        df = pd.DataFrame(X, columns=[f"f{i}" for i in range(1, 6)])
+        df["target"] = (prob > 0.5).astype(int)
+    elif dataset_type == "clustering":
+        from sklearn.datasets import make_blobs
+        X, y = make_blobs(n_samples=n_samples, centers=4, n_features=3, random_state=random_state)
+        df = pd.DataFrame(X, columns=["x", "y", "z"])
+        df["cluster"] = y
+    else:
+        df = pd.DataFrame({
+            "n1": np.random.randn(n_samples),
+            "n2": np.random.exponential(2, n_samples),
+            "cat": np.random.choice(["A", "B", "C"], n_samples),
+            "target": np.random.randn(n_samples),
+        })
+        df.loc[df.sample(frac=0.05, random_state=random_state).index, "n1"] = np.nan
+
+    print(f"Generated '{dataset_type}' dataset: {df.shape}")
+    return df
+
+
+# =============================================================================
+# 10. ML pipeline (склейка рутины)
+# =============================================================================
+
+def create_ml_pipeline(df: pd.DataFrame, target_col: str, problem_type: str = "auto"):
+    """Полный цикл: preprocess → train → метрики → графики."""
+    print("ML Pipeline")
+    if problem_type == "auto":
+        problem_type = "regression" if df[target_col].nunique() > 10 and pd.api.types.is_numeric_dtype(df[target_col]) else "classification"
+    print(f"Type: {problem_type}")
+
+    X_train, X_test, y_train, y_test, _ = prepare_xy(df, target_col)
+
+    if problem_type == "classification":
+        results = train_classification_models(X_train, X_test, y_train, y_test)
+        best = max(results, key=lambda k: results[k]["f1"])
+        y_pred = results[best]["model"].predict(X_test)
+        plot_confusion_matrix(y_test, y_pred, f"CM — {best}")
+        if results[best]["auc"] is not None:
+            plot_roc_curve(y_test, results[best]["model"].predict_proba(X_test)[:, 1], f"ROC — {best}")
+    else:
+        results = train_regression_models(X_train, X_test, y_train, y_test)
+        best = max(results, key=lambda k: results[k]["r2"])
+        plot_predictions(y_test, results[best]["model"].predict(X_test), f"Pred — {best}")
+
+    return results[best]["model"], results, X_test, y_test
 
 
 if __name__ == "__main__":
     setup_plot_style()
-    print("=== OM/GEK Exam Utils Demo ===\n")
-
-    nums = generate_random_int_list(10_000, seed=1)
-    chunks = split_into_chunks(nums, 4)
-    ref = reference_sum_of_squares(nums)
-    print(f"Reference sum of squares (10k): {ref}")
-
-    ops = generate_lru_test_sequence(capacity=3, n_ops=12)
-    print_lru_trace_table(ops)
-
-    books = generate_sample_books(3)
-    ok, errs = validate_book_dto(books[0])
-    print(f"Book validation: ok={ok}, errors={errs}")
-
-    log_lines = generate_sample_server_log(20)
-    log_path = Path(__file__).parent / "data" / "sample_server.log"
-    save_server_log(log_lines, log_path)
-    by_svc, by_msg = demo_log_aggregation(log_path)
-    print("\n" + format_log_report(by_svc, by_msg))
-
-    print_theory_topics_index()
+    df = generate_sample_data("mixed", 300)
+    quick_eda(df, "target")
+    top_n_counts(group_and_count(df, "cat"), n=5, title="Categories")

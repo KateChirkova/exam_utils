@@ -1,55 +1,41 @@
-# Опись репозитория для государственного экзамена / ГЭК
+# Опись репозитория exam_utils
 
 ## Владелец: [KateChirkova](https://github.com/KateChirkova)
-## Репозиторий: `https://github.com/KateChirkova/exam_utils`
+## Репозиторий: https://github.com/KateChirkova/exam_utils
 
 ## Назначение
-Набор Python-утилит для **ускорения** решения практических задач из файла `ОМ_ГЭК.docx`.
-Утилиты **не содержат готовых решений** экзаменационных задач на Java.
+Python-утилиты для **практических** заданий на экзамене. Заменяют рутину:
+загрузка данных, EDA, графики, предобработка, обучение моделей, парсинг файлов.
+**Не решают конкретную задачу целиком.**
 
-## Источник задач
-- Практика Java: CompletableFuture, LRU Cache, REST «Библиотека», парсинг `server.log`
-- Теория: SQL, алгоритмы, Linux, сети, архитектура, Docker, Git, ML, распределённые системы, ITIL, Cloud
+Ориентир по структуре: [exam-preparation-utils](https://github.com/Moldarus/exam-preparation-utils).
 
-## Структура репозитория
+## Файлы
 
-### 1. `utils.py` (основной модуль)
-| Блок | Функции | Назначение |
-|------|---------|------------|
-| Параллелизм | `generate_random_int_list`, `split_into_chunks`, `reference_sum_of_squares`, `benchmark_call`, `plot_parallel_chunks` | Тестовые данные и сверка результата Java |
-| LRU | `generate_lru_test_sequence`, `print_lru_trace_table`, `plot_lru_access_pattern` | Трассировка get/put, не реализация кэша |
-| REST | `generate_sample_books`, `validate_book_dto`, `books_to_json`, `print_curl_templates`, `print_rest_layer_skeleton` | DTO, валидация, HTTP-шаблоны |
-| Logs | `get_log_line_pattern`, `parse_log_line`, `generate_sample_server_log`, `format_log_report`, `plot_log_errors_by_service` | Regex, генерация log, формат вывода |
-| Теория | `print_sql_cheatsheet`, `print_git_cheatsheet`, `print_network_reference`, `compute_classification_metrics` | Шпаргалки и быстрые проверки |
-| LLM | см. `llm_helpers.py` | Подключение к OpenAI / Ollama |
+### `utils.py`
+| Блок | Функции |
+|------|---------|
+| Рутина | `setup_plot_style`, `save_figure`, `preview_df`, `load_table`, `read_text_lines`, `timer`, `benchmark_call`, `split_into_chunks`, `group_and_count`, `top_n_counts`, `extract_with_regex` |
+| EDA | `quick_eda` |
+| Визуализация | `plot_distributions`, `plot_correlation_matrix`, `plot_bar_counts`, `plot_box_by_category`, `plot_scatter_colored`, `quick_visualization_report`, `plot_parallel_coordinates` |
+| Предобработка | `handle_missing_values`, `encode_categorical`, `scale_features`, `prepare_xy` |
+| Кластеризация | `kmeans_elbow_method`, `perform_clustering`, `plot_clusters_2d` |
+| Классификация | `train_classification_models`, `plot_confusion_matrix`, `plot_roc_curve` |
+| Регрессия | `train_regression_models`, `plot_predictions` |
+| Аномалии | `detect_anomalies_iqr`, `detect_anomalies_zscore` |
+| Features | `create_interaction_features`, `select_features_by_correlation`, `cross_validate_model` |
+| Данные / ML | `generate_sample_data`, `create_ml_pipeline` |
 
-### 2. `llm_helpers.py`
-- `load_llm_config`, `get_llm_client`, `ask_llm`
-- `explain_concept`, `review_code_snippet` — с ограничением «не давать готовое решение»
+### `exam_examples.py`
+8 примеров использования всех блоков.
 
-### 3. `exam_examples.py`
-Демонстрация всех блоков утилит.
+### `requirements.txt`
+Зависимости (numpy, pandas, sklearn, matplotlib, seaborn).
 
-### 4. `data/sample_server.log`
-Пример лог-файла для локальных тестов парсера.
-
-### 5. `requirements.txt`
-Зависимости с открытыми лицenzиями.
-
-## Переменные окружения (`.env`)
+## Использование
+```bash
+git clone https://github.com/KateChirkova/exam_utils.git
+cd exam_utils
+python -m pip install -r requirements.txt
+python exam_examples.py
 ```
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini
-# опционально для Ollama:
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2
-```
-
-## Использование на экзамене
-1. Клонировать репозиторий на рабочую машину
-2. `pip install -r requirements.txt`
-3. Импортировать нужные функции в интерактивной сессии или скрипте проверки
-4. Решение задач писать на Java (как требует билет)
-
-## Ориентир
-Структура и подход заимствованы из [exam-preparation-utils](https://github.com/Moldarus/exam-preparation-utils).

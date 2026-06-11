@@ -1,8 +1,8 @@
 __pycache__/
 *.py[cod]
-.env
 .venv/
 venv/
 *.egg-info/
 .pytest_cache/
-data/sample_books.json
+*.png
+*.xlsx
