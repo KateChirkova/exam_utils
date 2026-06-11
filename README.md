@@ -22,4 +22,3 @@ python -m pip install -r requirements.txt
 | `load_llm_config` | настройки LLM из `.env` |
 | `check_llm_ready` | проверка настроек LLM |
 
-Модуль `utils.py` — первые 13 функций. Модуль `llm_helpers.py` — последние 2. Вызов LLM (`ollama`, LM Studio и др.) — в вашем коде.
