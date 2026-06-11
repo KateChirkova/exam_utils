@@ -1,10 +1,3 @@
-"""
-Утилиты для практических заданий на экзамене.
-Ориентир: https://github.com/Moldarus/exam-preparation-utils
-
-Только визуализация и загрузка данных — без обучения моделей и предобработки.
-"""
-
 from pathlib import Path
 
 import matplotlib.pyplot as plt
