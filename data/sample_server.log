@@ -1,0 +1,20 @@
+[2024-03-15 10:00:00] INFO PaymentService - User 328 logged in
+[2024-03-15 10:00:13] INFO UserService - User 704 logged in
+[2024-03-15 10:01:04] INFO PaymentService - User 338 logged in
+[2024-03-15 10:01:51] ERROR PaymentService - Invalid credentials for user 833
+[2024-03-15 10:02:36] ERROR AuthService - Connection pool exhausted
+[2024-03-15 10:00:25] INFO AuthService - Token expired for user 384
+[2024-03-15 10:01:24] INFO AuthService - Token expired for user 204
+[2024-03-15 10:01:10] ERROR AuthService - Connection pool exhausted
+[2024-03-15 10:02:48] INFO UserService - User 487 logged in
+[2024-03-15 10:01:30] INFO AuthService - User 691 logged in
+[2024-03-15 10:02:50] INFO PaymentService - User 891 logged in
+[2024-03-15 10:04:13] INFO UserService - User 489 logged in
+[2024-03-15 10:04:24] INFO AuthService - User 266 logged in
+[2024-03-15 10:06:04] ERROR AuthService - Payment failed for user 818: timeout
+[2024-03-15 10:02:06] INFO PaymentService - User 267 logged in
+[2024-03-15 10:08:30] INFO PaymentService - User 801 logged in
+[2024-03-15 10:06:40] INFO UserService - User 924 logged in
+[2024-03-15 10:07:05] INFO PaymentService - User 680 logged in
+[2024-03-15 10:07:30] INFO DatabaseService - Token expired for user 758
+[2024-03-15 10:10:46] INFO PaymentService - Token expired for user 862
