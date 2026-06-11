@@ -103,6 +103,19 @@ def example_8_routine_helpers():
     return parsed
 
 
+def example_9_llm_connection():
+    print("EXAMPLE 9: LLM connection (no prompts)")
+    from llm_helpers import load_llm_config, check_connection
+
+    cfg = load_llm_config()
+    print(f"provider={cfg.provider}, model={cfg.model}, key_set={bool(cfg.api_key)}")
+    print("To call LLM, pass your own messages:")
+    print('  from llm_helpers import chat')
+    print('  chat([{"role": "user", "content": "ваш вопрос"}])')
+    if cfg.api_key or cfg.provider == "ollama":
+        check_connection(cfg.provider)
+
+
 EXAMPLES = [
     ("EDA & visualization", example_1_eda_and_visualization),
     ("Preprocessing", example_2_data_preprocessing),
@@ -112,6 +125,7 @@ EXAMPLES = [
     ("Anomaly detection", example_6_anomaly_detection),
     ("Full pipeline", example_7_full_pipeline),
     ("Routine helpers", example_8_routine_helpers),
+    ("LLM connection", example_9_llm_connection),
 ]
 
 

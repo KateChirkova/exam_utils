@@ -5,3 +5,5 @@ scipy
 matplotlib
 seaborn
 openpyxl
+python-dotenv
+openai

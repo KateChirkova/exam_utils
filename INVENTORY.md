@@ -29,8 +29,12 @@ Python-утилиты для **практических** заданий на э
 ### `exam_examples.py`
 8 примеров использования всех блоков.
 
+### `llm_helpers.py`
+Только подключение — без готовых промптов:
+`load_llm_config`, `get_llm_client`, `chat`, `chat_stream`, `check_connection`.
+
 ### `requirements.txt`
-Зависимости (numpy, pandas, sklearn, matplotlib, seaborn).
+Зависимости (numpy, pandas, sklearn, matplotlib, seaborn, openai).
 
 ## Использование
 ```bash
