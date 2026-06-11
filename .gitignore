@@ -1,4 +1,7 @@
 .env
+chroma_db/
+reports/
+logs/log-*.txt
 __pycache__/
 *.py[cod]
 .venv/

@@ -7,3 +7,8 @@ seaborn
 openpyxl
 python-dotenv
 openai
+chromadb
+sentence-transformers
+gensim
+transformers
+torch

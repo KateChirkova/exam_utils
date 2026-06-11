@@ -103,6 +103,76 @@ def example_8_routine_helpers():
     return parsed
 
 
+def example_10_rag_helpers():
+    """Задача 1: RAG — XML, чанки, индекс, поиск (сервис пишете сами)."""
+    print("EXAMPLE 10: RAG helpers")
+    from rag_helpers import (
+        chunk_documents,
+        format_llm_json_response,
+        join_retrieved_context,
+        load_xml_documents,
+        search_chunks,
+        startup_status_html,
+        write_daily_log,
+    )
+
+    print(startup_status_html(True))
+    docs = load_xml_documents("source_data")
+    chunks = chunk_documents(docs, chunk_size=50, overlap=10)
+    print(f"First chunk preview: {chunks[0]['chunk'][:80]}...")
+    print(format_llm_json_response("пример ответа"))
+    write_daily_log("RAG helpers demo")
+    return chunks
+
+
+def example_11_sentiment_ner_report():
+    """Задача 2: тональность + NER + каркас отчёта."""
+    print("EXAMPLE 11: Sentiment & NER (needs transformers)")
+    from nlp_helpers import read_text_file, split_text_to_paragraphs, social_features_dataframe
+
+    sample = "Отличный сервис! Компания Microsoft открыла офис в Москве."
+    paragraphs = split_text_to_paragraphs(sample)
+    print(social_features_dataframe(paragraphs))
+    print("Для полного анализа: load_sentiment_pipeline() + analyze_sentiment_batch()")
+
+
+def example_12_social_features():
+    """Задача 3: признаки текста для прогноза реакций."""
+    print("EXAMPLE 12: Social text features")
+    from nlp_helpers import extract_social_text_features, social_features_dataframe
+
+    texts = ["Супер новость!!! #IT @user", "Короткий пост"]
+    df = social_features_dataframe(texts)
+    print(df)
+    return df
+
+
+def example_13_vectorization():
+    """Задача 4: TF-IDF, Count, Word2Vec, сводная таблица."""
+    print("EXAMPLE 13: Vectorization")
+    from nlp_helpers import train_word2vec, vectorization_summary_table, vectorize_tfidf
+
+    texts = ["машинное обучение интересно", "обучение моделей на данных", "машинное обучение модели"]
+    tfidf, _ = vectorize_tfidf(texts, max_features=100)
+    w2v = train_word2vec(texts, vector_size=50, sg=1)
+    summary = vectorization_summary_table({
+        "tfidf": tfidf,
+        "w2v_vocab": np.array([[len(w2v.wv)]]),
+    })
+    return summary
+
+
+def example_14_llm_comparison():
+    """Задача 5: сравнение ответов LLM (нужен API key / Ollama)."""
+    print("EXAMPLE 14: LLM comparison table")
+    from nlp_helpers import compare_llm_on_questions, preview_comparison_table
+
+    questions = ["Что такое RAG?"]
+    print("Запуск только при настроенном LLM:")
+    print("  df = compare_llm_on_questions(questions, providers=['openai'])")
+    print("  preview_comparison_table(df)")
+
+
 def example_9_llm_connection():
     print("EXAMPLE 9: LLM connection (no prompts)")
     from llm_helpers import load_llm_config, check_connection
@@ -126,6 +196,11 @@ EXAMPLES = [
     ("Full pipeline", example_7_full_pipeline),
     ("Routine helpers", example_8_routine_helpers),
     ("LLM connection", example_9_llm_connection),
+    ("RAG helpers (task 1)", example_10_rag_helpers),
+    ("Sentiment/NER (task 2)", example_11_sentiment_ner_report),
+    ("Social features (task 3)", example_12_social_features),
+    ("Vectorization (task 4)", example_13_vectorization),
+    ("LLM comparison (task 5)", example_14_llm_comparison),
 ]
 
 
