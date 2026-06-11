@@ -49,13 +49,15 @@ def example_4_regression_plot():
     plot_predictions(y_true, y_pred)
 
 
-def example_5_llm_client():
-    print("EXAMPLE 5: LLM client")
-    from llm_helpers import load_llm_config, get_llm_client
-    cfg = load_llm_config()
-    print(f"provider={cfg.provider}, model={cfg.model}")
-    client = get_llm_client(cfg)
-    print("client ready — вызов API в вашем коде")
+def example_5_llm():
+    print("EXAMPLE 5: LLM")
+    from llm_helpers import ask, chat, check_llm_ready
+
+    check_llm_ready()
+    print("Примеры (нужен ключ в .env или Ollama):")
+    print('  ask("ваш вопрос")')
+    print('  chat([{"role": "user", "content": "..."}])')
+    print('  chat([...], provider="ollama")')
 
 
 if __name__ == "__main__":
@@ -64,7 +66,7 @@ if __name__ == "__main__":
         ("Bar counts", example_2_bar_and_counts),
         ("Confusion matrix", example_3_confusion_matrix),
         ("Regression plot", example_4_regression_plot),
-        ("LLM client", example_5_llm_client),
+        ("LLM", example_5_llm),
     ]
     for name, func in examples:
         print(f"\n{'=' * 50}\n{name}\n{'=' * 50}")

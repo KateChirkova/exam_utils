@@ -25,12 +25,17 @@
 | `plot_parallel_coordinates` | параллельные координаты |
 | `quick_visualization_report` | корреляции + распределения + целевая |
 
-## `llm_helpers.py` — только подключение
+## `llm_helpers.py` — LLM
+
+Ключи: файл `.env` (шаблон `.env.example`). Ключ выдаёт сайт провайдера (OpenAI, GigaChat…); Ollama — без ключа.
 
 | Функция | Назначение |
 |---------|------------|
 | `load_llm_config` | настройки из `.env` |
 | `get_llm_client` | OpenAI-совместимый клиент |
+| `check_llm_ready` | проверка: ключ задан? |
+| `chat(messages)` | запрос с списком сообщений |
+| `ask(prompt, system=...)` | короткий вопрос одной строкой |
 
 ## Установка
 ```bash

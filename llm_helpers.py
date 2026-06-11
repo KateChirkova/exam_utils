@@ -1,6 +1,6 @@
 """
-Подключение к LLM — только конфиг и клиент.
-Вызовы API делаете сами через get_llm_client().
+Подключение к LLM: конфиг из .env, клиент, вызов API.
+Ключи берутся из файла .env (см. .env.example) — не из репозитория.
 """
 
 from __future__ import annotations
@@ -25,7 +25,12 @@ class LLMConfig:
 
 
 def load_llm_config(provider: str = "openai") -> LLMConfig:
-    """Загрузить настройки из .env."""
+    """
+    Загрузить настройки из .env.
+
+    OpenAI / GigaChat / др.: OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL
+    Ollama (локально, без ключа): OLLAMA_BASE_URL, OLLAMA_MODEL
+    """
     provider = provider.lower()
     if provider == "openai":
         return LLMConfig(
@@ -35,26 +40,19 @@ def load_llm_config(provider: str = "openai") -> LLMConfig:
             base_url=os.getenv("OPENAI_BASE_URL"),
         )
     if provider in ("ollama", "local"):
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        if not base_url.rstrip("/").endswith("/v1"):
+            base_url = base_url.rstrip("/") + "/v1"
         return LLMConfig(
             provider="ollama",
             model=os.getenv("OLLAMA_MODEL", "llama3.2"),
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            base_url=base_url,
         )
     raise ValueError(f"Unknown provider: {provider}. Use 'openai' or 'ollama'.")
 
 
 def get_llm_client(config: LLMConfig | None = None, provider: str = "openai"):
-    """
-    Создать OpenAI-совместимый клиент.
-
-    Пример вызова (в вашем коде):
-        client = get_llm_client()
-        cfg = load_llm_config()
-        response = client.chat.completions.create(
-            model=cfg.model,
-            messages=[{"role": "user", "content": "..."}],
-        )
-    """
+    """Создать OpenAI-совместимый клиент."""
     try:
         from openai import OpenAI
     except ImportError as exc:
@@ -69,6 +67,68 @@ def get_llm_client(config: LLMConfig | None = None, provider: str = "openai"):
     return OpenAI(**kwargs)
 
 
+def check_llm_ready(provider: str = "openai") -> bool:
+    """
+    Проверить, что настройки LLM заданы (ключ в .env или Ollama).
+    Не делает запрос к API.
+    """
+    cfg = load_llm_config(provider)
+    if cfg.provider == "openai" and not cfg.api_key:
+        print(
+            "Ключ не найден. Скопируйте .env.example → .env и укажите OPENAI_API_KEY.\n"
+            "Ключ получают на сайте провайдера (OpenAI, GigaChat и т.д.)."
+        )
+        return False
+    print(f"LLM готов: provider={cfg.provider}, model={cfg.model}")
+    return True
+
+
+def chat(
+    messages: list[dict[str, str]],
+    provider: str = "openai",
+    config: LLMConfig | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+) -> str:
+    """
+    Отправить сообщения в LLM, вернуть текст ответа.
+
+    Пример:
+        chat([{"role": "user", "content": "Привет"}])
+        chat([{"role": "user", "content": query}], provider="ollama")
+    """
+    config = config or load_llm_config(provider)
+    client = get_llm_client(config, provider)
+    model = config.model or ("gpt-4o-mini" if config.provider == "openai" else "llama3.2")
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature if temperature is not None else config.temperature,
+        max_tokens=max_tokens or config.max_tokens,
+    )
+    return response.choices[0].message.content or ""
+
+
+def ask(
+    prompt: str,
+    system: str | None = None,
+    provider: str = "openai",
+) -> str:
+    """
+    Короткий вызов: один вопрос пользователя (+ опционально system).
+
+    Пример:
+        answer = ask("Объясни RAG в двух предложениях")
+        answer = ask(query, system="Отвечай только по контексту Wiki.")
+    """
+    messages: list[dict[str, str]] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    return chat(messages, provider=provider)
+
+
 if __name__ == "__main__":
-    cfg = load_llm_config()
-    print(f"provider={cfg.provider}, model={cfg.model}, key_set={bool(cfg.api_key)}")
+    check_llm_ready()
+    check_llm_ready("ollama")
