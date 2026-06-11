@@ -50,13 +50,12 @@ def example_4_regression_plot():
 
 
 def example_5_llm():
-    print("EXAMPLE 5: LLM config + client")
-    from llm_helpers import check_llm_ready, get_llm_client, load_llm_config
+    print("EXAMPLE 5: LLM config")
+    from llm_helpers import check_llm_ready, load_llm_config
 
     check_llm_ready("ollama")
-    cfg = load_llm_config("ollama")
-    print(f"model={cfg.model}")
-    print("Вызов API — в вашем коде (ollama / gigachat / llama_cpp / transformers)")
+    cfg = load_llm_config("lm_studio")
+    print(f"ollama model={load_llm_config('ollama').model}, lm_studio={cfg.base_url}")
 
 
 if __name__ == "__main__":
