@@ -5,4 +5,11 @@ matplotlib
 seaborn
 openpyxl
 python-dotenv
+
+# LLM (на экзамене уже установлены — дублируем для локальной установки)
 openai
+ollama
+gigachat
+llama-cpp-python
+transformers
+torch

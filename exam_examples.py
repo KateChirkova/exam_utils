@@ -50,14 +50,12 @@ def example_4_regression_plot():
 
 
 def example_5_llm():
-    print("EXAMPLE 5: LLM")
-    from llm_helpers import ask, chat, check_llm_ready
+    print("EXAMPLE 5: LLM (без ключа — provider='ollama')")
+    from llm_helpers import ask, check_llm_ready
 
-    check_llm_ready()
-    print("Примеры (нужен ключ в .env или Ollama):")
-    print('  ask("ваш вопрос")')
-    print('  chat([{"role": "user", "content": "..."}])')
-    print('  chat([...], provider="ollama")')
+    check_llm_ready("ollama")
+    print('  answer = ask("ваш вопрос")  # ollama по умолчанию')
+    print('  answer = ask("...", provider="llama_cpp")')
 
 
 if __name__ == "__main__":

@@ -27,15 +27,19 @@
 
 ## `llm_helpers.py` — LLM
 
-Ключи: файл `.env` (шаблон `.env.example`). Ключ выдаёт сайт провайдера (OpenAI, GigaChat…); Ollama — без ключа.
+| provider | Ключ с сайта? | Что нужно заранее |
+|----------|---------------|-------------------|
+| `ollama` (по умолчанию) | **Нет** | `ollama pull llama3.2` |
+| `llama_cpp` | **Нет** | файл `.gguf` на диске |
+| `transformers` | **Нет** | веса модели скачаны |
+| `openai` | Да | `OPENAI_API_KEY` в `.env` |
+| `gigachat` | Да | `GIGACHAT_CREDENTIALS` в `.env` |
 
 | Функция | Назначение |
 |---------|------------|
-| `load_llm_config` | настройки из `.env` |
-| `get_llm_client` | OpenAI-совместимый клиент |
-| `check_llm_ready` | проверка: ключ задан? |
-| `chat(messages)` | запрос с списком сообщений |
-| `ask(prompt, system=...)` | короткий вопрос одной строкой |
+| `ask(prompt, provider="ollama")` | вопрос без ключа |
+| `chat(messages, provider=...)` | запрос к выбранному бэкенду |
+| `check_llm_ready(provider)` | проверка настроек |
 
 ## Установка
 ```bash
