@@ -1,7 +1,7 @@
 # Опись репозитория для государственного экзамена / ГЭК
 
 ## Владелец: [KateChirkova](https://github.com/KateChirkova)
-## Репозиторий: `https://github.com/KateChirkova/om-gek-exam-utils`
+## Репозиторий: `https://github.com/KateChirkova/exam_utils`
 
 ## Назначение
 Набор Python-утилит для **ускорения** решения практических задач из файла `ОМ_ГЭК.docx`.
