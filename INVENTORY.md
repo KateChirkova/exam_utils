@@ -37,9 +37,11 @@
 
 | Функция | Назначение |
 |---------|------------|
-| `ask(prompt, provider="ollama")` | вопрос без ключа |
-| `chat(messages, provider=...)` | запрос к выбранному бэкенду |
+| `load_llm_config(provider)` | настройки из `.env` |
 | `check_llm_ready(provider)` | проверка настроек |
+| `get_llm_client(config)` | OpenAI-совместимый клиент |
+
+Вызов LLM (`ollama`, `gigachat`, `llama_cpp`, `transformers`) — в вашем коде.
 
 ## Установка
 ```bash

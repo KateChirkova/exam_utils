@@ -50,12 +50,13 @@ def example_4_regression_plot():
 
 
 def example_5_llm():
-    print("EXAMPLE 5: LLM (без ключа — provider='ollama')")
-    from llm_helpers import ask, check_llm_ready
+    print("EXAMPLE 5: LLM config + client")
+    from llm_helpers import check_llm_ready, get_llm_client, load_llm_config
 
     check_llm_ready("ollama")
-    print('  answer = ask("ваш вопрос")  # ollama по умолчанию')
-    print('  answer = ask("...", provider="llama_cpp")')
+    cfg = load_llm_config("ollama")
+    print(f"model={cfg.model}")
+    print("Вызов API — в вашем коде (ollama / gigachat / llama_cpp / transformers)")
 
 
 if __name__ == "__main__":
