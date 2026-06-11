@@ -1,6 +1,3 @@
-"""
-Примеры визуализаций и подключения LLM.
-"""
 
 import numpy as np
 import pandas as pd
