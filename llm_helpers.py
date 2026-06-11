@@ -1,6 +1,6 @@
 """
-Подключение к LLM — только инфраструктура: конфиг, клиент, отправка сообщения.
-Без готовых промптов и без автоматических вызовов из других модулей.
+Подключение к LLM — только конфиг и клиент.
+Вызовы API делаете сами через get_llm_client().
 """
 
 from __future__ import annotations
@@ -44,7 +44,17 @@ def load_llm_config(provider: str = "openai") -> LLMConfig:
 
 
 def get_llm_client(config: LLMConfig | None = None, provider: str = "openai"):
-    """Создать OpenAI-совместимый клиент."""
+    """
+    Создать OpenAI-совместимый клиент.
+
+    Пример вызова (в вашем коде):
+        client = get_llm_client()
+        cfg = load_llm_config()
+        response = client.chat.completions.create(
+            model=cfg.model,
+            messages=[{"role": "user", "content": "..."}],
+        )
+    """
     try:
         from openai import OpenAI
     except ImportError as exc:
@@ -57,69 +67,6 @@ def get_llm_client(config: LLMConfig | None = None, provider: str = "openai"):
     if config.base_url:
         kwargs["base_url"] = config.base_url
     return OpenAI(**kwargs)
-
-
-def chat(
-    messages: list[dict[str, str]],
-    config: LLMConfig | None = None,
-    provider: str = "openai",
-) -> str:
-    """
-    Отправить список сообщений в LLM, вернуть текст ответа.
-    Промпт формируете сами — здесь только транспорт.
-
-    Пример:
-        chat([
-            {"role": "user", "content": "Объясни overfitting в двух предложениях"},
-        ])
-    """
-    config = config or load_llm_config(provider)
-    client = get_llm_client(config, provider)
-    response = client.chat.completions.create(
-        model=config.model or ("gpt-4o-mini" if config.provider == "openai" else "llama3.2"),
-        messages=messages,
-        temperature=config.temperature,
-        max_tokens=config.max_tokens,
-    )
-    return response.choices[0].message.content or ""
-
-
-def chat_stream(
-    messages: list[dict[str, str]],
-    config: LLMConfig | None = None,
-    provider: str = "openai",
-):
-    """
-    Потоковый ответ (генератор фрагментов текста).
-
-    Пример:
-        for chunk in chat_stream([{"role": "user", "content": "Привет"}]):
-            print(chunk, end="", flush=True)
-    """
-    config = config or load_llm_config(provider)
-    client = get_llm_client(config, provider)
-    stream = client.chat.completions.create(
-        model=config.model or ("gpt-4o-mini" if config.provider == "openai" else "llama3.2"),
-        messages=messages,
-        temperature=config.temperature,
-        max_tokens=config.max_tokens,
-        stream=True,
-    )
-    for event in stream:
-        delta = event.choices[0].delta.content
-        if delta:
-            yield delta
-
-
-def check_connection(provider: str = "openai") -> bool:
-    """Проверить, доступен ли LLM (короткий ping)."""
-    try:
-        reply = chat([{"role": "user", "content": "OK"}], provider=provider)
-        print(f"LLM OK: {reply[:40]}")
-        return True
-    except Exception as exc:
-        print(f"LLM failed: {exc}")
-        return False
 
 
 if __name__ == "__main__":
