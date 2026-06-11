@@ -1,5 +1,3 @@
-Вспомогательные функции для экзамена: визуализация и настройка локальных LLM (Ollama, LM Studio, llama-cpp-python, transformers).
-
 ```bash
 git clone https://github.com/KateChirkova/exam_utils.git
 cd exam_utils
