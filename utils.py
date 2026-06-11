@@ -8,7 +8,7 @@ from sklearn.metrics import auc, confusion_matrix, roc_curve
 
 
 def setup_plot_style(figsize=(10, 5)):
-    """Единый стиль графиков — один вызов в начале работы."""
+    """Единый стиль графиков."""
     plt.style.use('seaborn-v0_8-whitegrid')
     plt.rcParams['figure.figsize'] = figsize
     plt.rcParams['font.size'] = 11
@@ -177,7 +177,7 @@ def plot_parallel_coordinates(df, class_col, cols=None):
 
 
 def quick_visualization_report(df, target_col=None):
-    """Один вызов: корреляции + распределения + целевая переменная."""
+    """корреляции + распределения + целевая переменная."""
     print("1. Correlation Matrix")
     plot_correlation_matrix(df)
 
