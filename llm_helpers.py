@@ -1,7 +1,3 @@
-"""
-Настройка локальных LLM: ollama, lm_studio, llama_cpp, transformers.
-Вызов API — в вашем коде (пакеты из requirements.txt).
-"""
 
 from __future__ import annotations
 
